@@ -1,0 +1,131 @@
+//water flow sensor variables, pin declaration  and output
+volatile int flow_frequency; // Measures flow sensor pulses
+// Calculated litres/hour
+ float vol = 0.0,l_minute;
+unsigned char flowsensor = 2; // Sensor Input
+unsigned long currentTime;
+unsigned long cloopTime;
+void flow () // Interrupt function
+{
+   flow_frequency++;
+}
+
+
+//ultrasonic sensor pins and library declaration
+#include "SR04.h"
+#define TRIG_PIN 51
+#define ECHO_PIN 53
+SR04 sr04 = SR04(ECHO_PIN,TRIG_PIN);
+int pingduration;
+
+
+//LCD pin declaration and library inclusion
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(7, 8, 9, 10, 11, 12);
+
+//water level sensor setup
+int WaterLevel;
+
+
+//Buzzer
+int buzz=32;
+
+//solenoid
+int solenoidValve=50;
+
+void setup()
+{  
+ //Buzzer
+pinMode(buzz,OUTPUT);
+
+
+//Solenoid Valve
+pinMode(solenoidValve, OUTPUT);
+
+
+ //Water flow sensor setup
+   pinMode(flowsensor, INPUT);
+   digitalWrite(flowsensor, HIGH); // Optional Internal Pull-Up
+   Serial.begin(9600);
+   
+   //LCD setup
+   lcd.begin(16, 2);
+   attachInterrupt(digitalPinToInterrupt(flowsensor), flow, RISING); // Setup Interrupt
+   lcd.clear();
+   lcd.setCursor(0,0);
+   lcd.print("Water Flow Meter");
+   lcd.setCursor(0,1);
+   lcd.print("Circuit Digest");
+   
+   currentTime = millis();
+   cloopTime = currentTime;
+   
+}
+void loop ()
+{
+  //Water Sensor
+  WaterLevel = analogRead(A0); // Get water sensor value
+  Serial.print("Water Level: ");
+  Serial.print(WaterLevel);
+  Serial.println(" ");
+ 
+  //LCD and Water Flow sensor
+   currentTime = millis();
+   // Every second, calculate and print litres/hour
+   if(currentTime >= (cloopTime + 1000))
+   {
+    cloopTime = currentTime; // Updates cloopTime
+    if(flow_frequency != 0){
+      // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
+      l_minute = (flow_frequency / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Rate: ");
+      lcd.print(l_minute);
+      lcd.print(" L/M");
+      l_minute = l_minute/60;
+      lcd.setCursor(0,1);
+      vol = vol +l_minute;
+      lcd.print("Vol:");
+      lcd.print(vol);
+      lcd.print(" L");
+      flow_frequency = 0; // Reset Counter
+      Serial.print(l_minute, DEC); // Print litres/hour
+      Serial.println(" L/Sec");
+    }
+    else {
+      Serial.println("Flow rate = 0 ");
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Rate: ");
+      lcd.print( flow_frequency );
+      lcd.print(" L/M");
+      lcd.setCursor(0,1);
+      lcd.print("Vol:");
+      lcd.print(vol);
+      lcd.println(" L");
+    }
+   }
+
+  // The ultrasonic sensor here  
+  pingduration =sr04.Distance();
+  Serial.print("Distance Sensor: ");
+  Serial.print(pingduration);
+  Serial.println(" cm ");
+  delay(100);
+
+Serial.println(" ");
+delay(1000);
+
+
+  if  (pingduration<40 && WaterLevel>80 ){
+  digitalWrite(solenoidValve, HIGH);
+  digitalWrite(buzz, LOW);
+  }
+  else{
+  digitalWrite(solenoidValve, LOW);
+  digitalWrite(buzz, HIGH);
+  delay(1000);
+  digitalWrite(buzz, LOW);
+    }
+}
